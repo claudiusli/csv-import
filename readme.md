@@ -20,3 +20,6 @@ python csv-import.py -f <csv file to import> -b <# of records/update -d <dbname>
 
 -d dbname= the name of the database to use
    Default=<file>(-.csv). The dbname can be any valid dbname. If none is supplied the filename is used as the dbname with any .csv stripped off.
+
+-a append force append mode
+   if the database already exists (either the default or a supplied name) the default behavior is to exit with an error message. If -a is specified new records will be added to the database except for records with an existing _id. NOTE this can result in duplicate records.

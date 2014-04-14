@@ -15,6 +15,7 @@ config = dict(
     inputfile='',
     #the number of rows to upload per bulk operation
     blocksize = 10000,
+    append = False,
     dbname = '',
     authheader = ''
     )
@@ -23,18 +24,20 @@ def parse_args(argv):
     '''
     parse through the argument list and update the config dict as appropriate
     '''
+    usage = 'python ' + os.path.basename(__file__) + ' -f <csv file to import> -b <# of records/update -d <dbname> -a'
     try:
-        opts, args = getopt.getopt(argv, "hf:b:d:", 
+        opts, args = getopt.getopt(argv, "hf:b:d:a", 
                                    ["file=",
                                     "blocksize=",
-                                    "dbname="
+                                    "dbname=",
+                                    "append"
                                     ])
     except getopt.GetoptError:
-        print 'python',os.path.basename(__file__), '-f <csv file to import>'
+        print usage
         sys.exit(2)
     for opt, arg in opts:
         if opt == '-h':
-            print 'python',os.path.basename(__file__), '-f <csv file to import>'
+            print usage
             sys.exit()
         elif opt in ("-f", "--file"):
             config['inputfile'] = arg
@@ -42,8 +45,10 @@ def parse_args(argv):
             config['blocksize'] = int(arg)
         elif opt in ("-d", "--dbname"):
             config['dbname'] = arg
+        elif opt in ("-a", "--append"):
+            config['append'] = True
     if config['inputfile'] == '':
-        print 'python',os.path.basename(__file__), '-f <csv file to import>'
+        print usage
         sys.exit()
         
 def initdbname():
@@ -56,7 +61,7 @@ def initdbname():
 
 def inithttp():
     config['authheader'] = {'Authorization': 'Basic '+config['credentials']}
-    config['baseurl'] = 'http://{0}.cloudant.com/{1}'.format(
+    config['baseurl'] = 'https://{0}.cloudant.com/{1}'.format(
         config['username'],
         config['dbname']
         )
@@ -67,11 +72,12 @@ def initializedb():
     '''
     create the database
     '''
-    #note this should eventually check to see if the DB is there first and
-    #if so refuse to continue unless an override flag is supplied.
     initdbname()
     inithttp()
     r = requests.put(config['baseurl'], headers = config['authheader'])
+    if r.status_code == 412 and not config['append']:
+        print 'The database "{0}" already exists. Use -a to add records'.format(config['dbname'])
+        exit()
 
 def updatedb(requestdata):
     headers = config['authheader']
@@ -81,8 +87,6 @@ def updatedb(requestdata):
         headers = headers,
         data = json.dumps(requestdata)
         )
-        
-    #pprint(requestdata)
 
 def read_inputfile():
     '''
@@ -93,17 +97,18 @@ def read_inputfile():
         rowcounter = 0
         requestdata = dict(docs=[])
         for row in reader:
-            if rowcounter < config['blocksize']:
-                #add row to temp dict
-                requestdata['docs'].append(row)
-                #increment the row counter
-                rowcounter += 1
-            else:
+            if rowcounter >= config['blocksize']:
                 #update db
                 updatedb(requestdata)
                 #reset the temp dict and counter
                 requestdata = dict(docs=[])
                 rowcounter = 0
+            #add row to temp dict
+            requestdata['docs'].append(row)
+            #increment the row counter
+            rowcounter += 1
+        #write any remaining rows to the database
+        updatedb(requestdata)
 
 def main(argv):
     parse_args(argv)
