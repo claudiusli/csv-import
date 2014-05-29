@@ -1,6 +1,7 @@
 import os
 import sys
 import getopt
+import getpass
 import csv
 import base64
 import json
@@ -10,9 +11,9 @@ from pprint import pprint
 
 # configuration values
 config = dict(
-    username=os.environ['CLOUDANT_USER'],
-    credentials=os.environ['CLOUDANT_CREDENTIALS'],
-    inputfile='',
+    username = '',
+    password = '',
+    inputfile = '',
     #the number of rows to upload per bulk operation
     blocksize = 10000,
     append = False,
@@ -24,13 +25,14 @@ def parse_args(argv):
     '''
     parse through the argument list and update the config dict as appropriate
     '''
-    usage = 'python ' + os.path.basename(__file__) + ' -f <csv file to import> -b <# of records/update -d <dbname> -a'
+    usage = 'python ' + os.path.basename(__file__) + ' -f <csv file to import> -u <username> [-b <# of records/update] [-d <dbname>] [-a]'
     try:
-        opts, args = getopt.getopt(argv, "hf:b:d:a", 
+        opts, args = getopt.getopt(argv, "hf:b:d:au:", 
                                    ["file=",
                                     "blocksize=",
                                     "dbname=",
-                                    "append"
+                                    "append",
+                                    "uesrname="
                                     ])
     except getopt.GetoptError:
         print usage
@@ -47,43 +49,62 @@ def parse_args(argv):
             config['dbname'] = arg
         elif opt in ("-a", "--append"):
             config['append'] = True
+        elif opt in ("-u", "--username"):
+            config['username'] = arg
+
+def init_config():
     if config['inputfile'] == '':
         print usage
         sys.exit()
-        
-def initdbname():
-    '''
-    let's check if the user specified a DB name
-    if not name it after the input file
-    '''
+    if config['username'] == '':
+        print usage
+        sys.exit()
+    #let's check if the user specified a DB name
+    #if not name it after the input file
     if config['dbname'] == '':
         config['dbname'] = config['inputfile'].split('.')[0]
+    config['baseurl'] = 'https://{0}.cloudant.com/'.format(config['username'])
+    config['dburl'] = config['baseurl'] + config['dbname']
 
-def inithttp():
-    config['authheader'] = {'Authorization': 'Basic '+config['credentials']}
-    config['baseurl'] = 'https://{0}.cloudant.com/{1}'.format(
-        config['username'],
-        config['dbname']
-        )
-    config['posturl'] = config['baseurl']+'/_bulk_docs'
-    config['postheader'] = {'Content-type': 'application/json'}
+def get_password():
+    config['password'] = getpass.getpass('Password for {0}:'.format(config["username"]))
+        
+def authenticate():
+    '''
+    This essentially does:
+    curl -X POST -i 'https://<username>.cloudant.com/_session' -H 'Content-type: application/x-www-form-urlencoded' -d 'name=<username>&password=<password>'
+    '''
+    header = {'Content-type': 'application/x-www-form-urlencoded'}
+    url = config['baseurl'] + '_session'
+    data = dict(name=config['username'],
+                password=config['password'])
+    response = requests.post(url, data = data, headers = header)
+    if 'error' in response.json():
+        if response.json()['error'] == 'forbidden':
+            print response.json()['reason']
+            sys.exit()
+    config['authheader'] = {'Cookie': response.headers['set-cookie']}
 
-def initializedb():
+def initialize_db():
     '''
     create the database
     '''
-    initdbname()
-    inithttp()
-    r = requests.put(config['baseurl'], headers = config['authheader'])
+    r = requests.put(config['dburl'], headers = config['authheader'])
     if r.status_code == 412 and not config['append']:
         print 'The database "{0}" already exists. Use -a to add records'.format(config['dbname'])
         exit()
 
 def updatedb(requestdata):
+    '''
+    posts <requestdata> to the database as a bulk operation
+    <requestdata> is expected to be a json file which consists of multiple documents
+    the form of <requestdata> is:
+    {'docs': [{<doc1>}, {doc2}, ... {docn}]}
+    '''
     headers = config['authheader']
-    headers.update(config['postheader'])
+    headers.update({'Content-type': 'application/json'})
     r = requests.post(
-        config['posturl'],
+        config['dburl']+'/_bulk_docs',
         headers = headers,
         data = json.dumps(requestdata)
         )
@@ -112,7 +133,10 @@ def read_inputfile():
 
 def main(argv):
     parse_args(argv)
-    initializedb()
+    get_password()
+    init_config()
+    authenticate()
+    initialize_db()
     read_inputfile()
 
 if __name__ == "__main__":
