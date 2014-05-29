@@ -10,8 +10,8 @@ from pprint import pprint
 
 # configuration values
 config = dict(
-    username=os.environ['cloudant_user'],
-    credentials=os.environ['cloudant_credentials'],
+    username=os.environ['CLOUDANT_USER'],
+    credentials=os.environ['CLOUDANT_CREDENTIALS'],
     inputfile='',
     #the number of rows to upload per bulk operation
     blocksize = 10000,
