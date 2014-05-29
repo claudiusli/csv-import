@@ -20,12 +20,12 @@ config = dict(
     dbname = '',
     authheader = ''
     )
+usage = 'python ' + os.path.basename(__file__) + ' -f <csv file to import> -u <username> [-b <# of records/update] [-d <dbname>] [-a]'
 
 def parse_args(argv):
     '''
     parse through the argument list and update the config dict as appropriate
     '''
-    usage = 'python ' + os.path.basename(__file__) + ' -f <csv file to import> -u <username> [-b <# of records/update] [-d <dbname>] [-a]'
     try:
         opts, args = getopt.getopt(argv, "hf:b:d:au:", 
                                    ["file=",
@@ -71,6 +71,9 @@ def get_password():
         
 def authenticate():
     '''
+    Authenticate to the cloudant using username and password
+    Get a session cookie and save it
+
     This essentially does:
     curl -X POST -i 'https://<username>.cloudant.com/_session' -H 'Content-type: application/x-www-form-urlencoded' -d 'name=<username>&password=<password>'
     '''
@@ -88,6 +91,9 @@ def authenticate():
 def initialize_db():
     '''
     create the database
+
+    this essentially does:
+    curl -X PUT https://<username>.cloudant.com/<dbname> -H 'Cookie: <authcookie>'
     '''
     r = requests.put(config['dburl'], headers = config['authheader'])
     if r.status_code == 412 and not config['append']:
@@ -100,6 +106,9 @@ def updatedb(requestdata):
     <requestdata> is expected to be a json file which consists of multiple documents
     the form of <requestdata> is:
     {'docs': [{<doc1>}, {doc2}, ... {docn}]}
+
+    this essentially does:
+    curl -X POST https://<username>.cloudant.com/<dbname>/_bulk_docs -H 'Cookie: <authcookie>' -H 'Content-type: application/json' -d '<requestdata>'
     '''
     headers = config['authheader']
     headers.update({'Content-type': 'application/json'})
@@ -115,6 +124,7 @@ def read_inputfile():
     '''
     with open(config['inputfile'], 'r') as fh:
         reader = csv.DictReader(fh)
+        fieldnames = reader.fieldnames
         rowcounter = 0
         requestdata = dict(docs=[])
         for row in reader:
@@ -130,6 +140,13 @@ def read_inputfile():
             rowcounter += 1
         #write any remaining rows to the database
         updatedb(requestdata)
+    return(fieldnames)
+
+def make_secondary(fieldnames):
+    '''
+    take the <fieldnames> and create a bunch of seconary indices out of them
+    '''
+    pass
 
 def main(argv):
     parse_args(argv)
@@ -137,7 +154,8 @@ def main(argv):
     init_config()
     authenticate()
     initialize_db()
-    read_inputfile()
+    fieldnames = read_inputfile()
+    make_secondary(fieldnames)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
