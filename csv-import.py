@@ -28,11 +28,12 @@ def parse_args(argv):
     '''
     try:
         opts, args = getopt.getopt(argv, "hf:b:d:au:", 
-                                   ["file=",
+                                   ["help",
+                                    "file=",
                                     "blocksize=",
                                     "dbname=",
                                     "append",
-                                    "uesrname="
+                                    "username="
                                     ])
     except getopt.GetoptError:
         print usage
@@ -98,7 +99,7 @@ def initialize_db():
     r = requests.put(config['dburl'], headers = config['authheader'])
     if r.status_code == 412 and not config['append']:
         print 'The database "{0}" already exists. Use -a to add records'.format(config['dbname'])
-        exit()
+        sys.exit()
 
 def updatedb(requestdata):
     '''
@@ -142,11 +143,59 @@ def read_inputfile():
         updatedb(requestdata)
     return(fieldnames)
 
-def make_secondary(fieldnames):
+def make_view(fieldname, activate = False):
+    '''
+    Create a secondary index and a "_count" reduce on the fieldname.
+    if <activate> is set to False the document will not be created as an active
+    design doc. To activate it remove the "INACTIVE" from the name
+
+    this essentially does:
+    curl -X POST https://<username>.cloudant.com/<dbname>/ -H 'Content-type: application/json' -H 'Cooke: <authcookie>' -d '{"_id":"_design/<fieldname>","views":{"<fieldname>_view":{"map":"function(doc){if(doc.<fieldname>){emit(doc.<fieldname>,null);}}","reduce":"_count"}}}'
+
+    view this with:
+    curl -X GET https://<username>.cloudant.com/<dbname>/_design/<fieldname>/_view/<fieldname>_view
+    to see non reduced results append ?reduce=false
+    '''
+    headers = config['authheader']
+    headers.update({'Content-type': 'application/json'})
+    #construct data body here
+    if activate == True:
+        idstring = "_design/"  + fieldname
+    else:
+        idstring = "INACTIVE_design/" + fieldname
+    #clean this up and add the reduce back
+    mapstring = 'function(doc){{if(doc.{0}){{emit(doc.{0},null);}}}}'.format(fieldname)
+    #,"reduce":"_count"
+    view_data = {"map":mapstring}
+    views_data = {fieldname+"_view":view_data}
+    requestdata = {"_id":idstring,"views":views_data}
+    r = requests.post(
+        config['dburl'],
+        headers = headers,
+        data = json.dumps(requestdata)
+    )
+
+
+def make_catalog(fieldnames):
     '''
     take the <fieldnames> and create a bunch of seconary indices out of them
     '''
-    pass
+    #the index limit is hardcoded for now
+    #DO NOT CHANGE THIS unless you really know what you're doing
+    #YOU CAN CRUSH A CLUSTER if you're not careful
+    cataloglimit = 5
+    catalog = 0
+    for fieldname in fieldnames:
+        #make sure we don't activate more than 5 views/indexes
+        catalog += 1
+        if catalog <= cataloglimit:
+            activate = True
+        else:
+            activate = False
+        #make a secondary index
+        make_view(fieldname, activate)
+        #make a search index
+        #make_index(fieldnam)
 
 def main(argv):
     parse_args(argv)
@@ -155,7 +204,7 @@ def main(argv):
     authenticate()
     initialize_db()
     fieldnames = read_inputfile()
-    make_secondary(fieldnames)
+    make_catalog(fieldnames)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
