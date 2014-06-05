@@ -150,10 +150,10 @@ def make_view(fieldname, activate = False):
     design doc. To activate it remove the "INACTIVE" from the name
 
     this essentially does:
-    curl -X POST https://<username>.cloudant.com/<dbname>/ -H 'Content-type: application/json' -H 'Cooke: <authcookie>' -d '{"_id":"_design/<fieldname>","views":{"<fieldname>_view":{"map":"function(doc){if(doc.<fieldname>){emit(doc.<fieldname>,null);}}","reduce":"_count"}}}'
+    curl -X POST https://<username>.cloudant.com/<dbname>/ -H 'Content-type: application/json' -H 'Cooke: <authcookie>' -d '{"_id":"_design/<fieldname>_view","views":{"<fieldname>":{"map":"function(doc){if(doc.<fieldname>){emit(doc.<fieldname>,null);}}","reduce":"_count"}}}'
 
     view this with:
-    curl -X GET https://<username>.cloudant.com/<dbname>/_design/<fieldname>/_view/<fieldname>_view
+    curl -X GET https://<username>.cloudant.com/<dbname>/_design/<fieldname>_view/_view/<fieldname>_view
     to see non reduced results append ?reduce=false
     '''
     headers = config['authheader']
@@ -164,11 +164,41 @@ def make_view(fieldname, activate = False):
     else:
         idstring = "INACTIVE_design/" + fieldname
     #clean this up and add the reduce back
-    mapstring = 'function(doc){{if(doc.{0}){{emit(doc.{0},null);}}}}'.format(fieldname)
-    #,"reduce":"_count"
-    view_data = {"map":mapstring}
-    views_data = {fieldname+"_view":view_data}
-    requestdata = {"_id":idstring,"views":views_data}
+    requestdata = {"_id":idstring  + "_view",
+                   "views":{fieldname:
+                            {"map":'function(doc){{if(doc.{0}){{emit(doc.{0},null);}}}}'.format(fieldname),
+                             "reduce":"_count"}}}
+    r = requests.post(
+        config['dburl'],
+        headers = headers,
+        data = json.dumps(requestdata)
+    )
+
+def make_index(fieldname, activate = False):
+    '''
+    Create a search index on fieldname
+    if <activate> is set to False the document will not be created as an active
+    design doc. To activate it remove the "INACTIVE" from the name
+
+    this essentially does:
+    curl -X POST https://<username>.cloudant.com/<dbname>/ -H 'Content-type: application/json' -H 'Cooke: <authcookie>' -d '{"_id":"_design/<fieldname>_index","indexes":{\"<fieldname>\":{"index":"function(doc){if(doc.<fieldname>){index('<fieldname>',doc.<fieldname>,{"store":true})}}"}}}'
+
+    view this with:
+    curl -X GET https://<username>.cloudant.com/<dbname>/_design/<fieldname>_index/_search/<fieldname>?q=<fieldname>:<searchterm>
+    '''
+    headers = config['authheader']
+    headers.update({'Content-type': 'application/json'})
+    #construct data body here
+    if activate == True:
+        idstring = "_design/"  + fieldname
+    else:
+        idstring = "INACTIVE_design/" + fieldname
+    #clean this up and add the reduce back
+    requestdata = {"_id":idstring + "_index",
+                   "indexes":{fieldname:
+                              {"index":'function(doc){{if(doc.{0}){{index("{0}",doc.{0},{{"store":true}});}}}}'.format(fieldname)}}}
+#"map":'function(doc){{if(doc.{0}){{emit(doc.{0},null);}}}}'.format(fieldname),
+#                             "reduce":"_count"}}}
     r = requests.post(
         config['dburl'],
         headers = headers,
@@ -195,12 +225,12 @@ def make_catalog(fieldnames):
         #make a secondary index
         make_view(fieldname, activate)
         #make a search index
-        #make_index(fieldnam)
+        make_index(fieldname, activate)
 
 def main(argv):
     parse_args(argv)
-    get_password()
     init_config()
+    get_password()
     authenticate()
     initialize_db()
     fieldnames = read_inputfile()
