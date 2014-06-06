@@ -156,6 +156,7 @@ def make_view(fieldname, activate = False):
     Create a secondary index and a "_count" reduce on the fieldname.
     if <activate> is set to False the document will not be created as an active
     design doc. To activate it remove the "INACTIVE" from the name
+    Note: to view these docs you will need to replace the / with %2f
 
     this essentially does:
     curl -X POST 'https://<username>.cloudant.com/<dbname>/' -H 'Content-type: application/json' -H 'Cooke: <authcookie>' -d '{"_id":"_design/<fieldname>_view","views":{"<fieldname>":{"map":"function(doc){if(doc.<fieldname>){emit(doc.<fieldname>,null);}}","reduce":"_count"}}}'
@@ -187,6 +188,7 @@ def make_index(fieldname, activate = False):
     Create a search index on fieldname
     if <activate> is set to False the document will not be created as an active
     design doc. To activate it remove the "INACTIVE" from the name
+    Note: to view these docs you will need to replace the / with %2f
 
     this essentially does:
     curl -X POST 'https://<username>.cloudant.com/<dbname>' -H 'Content-type: application/json' -H 'Cooke: <authcookie>' -d '{"_id":"_design/<fieldname>_index","indexes":{\"<fieldname>\":{"index":"function(doc){if(doc.<fieldname>){index('<fieldname>',doc.<fieldname>,{"store":true})}}"}}}'
