@@ -6,7 +6,7 @@ requests
 This script will read in a SCV file and import it into a Cloudant database. The top row of the header file is used to generate the field names. Each row is uploaded as a seperate record.
 
 usage:
-python csv-import.py -f <csv file to import> -u <username> [-b <# of records/update] [-d <dbname>] [-a]
+python csv-import.py -f <csv file to import> -u <username> [-b <# of records/update] [-d <dbname>] [-a] [-v] [-i]
 
 -f file= the name of the file to import
    The script expects as CSV file but the actual extension is irrelevant (see -d)
@@ -21,5 +21,9 @@ python csv-import.py -f <csv file to import> -u <username> [-b <# of records/upd
 
 -a append force append mode
    if the database already exists (either the default or a supplied name) the default behavior is to exit with an error message. If -a is specified new records will be added to the database except for records with an existing _id. NOTE this can result in duplicate records.
+
+-v create views for the first 5 fields (sorted in alphabetical order)
+
+-i create search indexes for the first 5 fields (sorted in alphabetical order)
 
 -h help print the help message.

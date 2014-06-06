@@ -18,22 +18,26 @@ config = dict(
     blocksize = 10000,
     append = False,
     dbname = '',
-    authheader = ''
+    authheader = '',
+    view = False,
+    index = False
     )
-usage = 'python ' + os.path.basename(__file__) + ' -f <csv file to import> -u <username> [-b <# of records/update] [-d <dbname>] [-a]'
+usage = 'python ' + os.path.basename(__file__) + ' -f <csv file to import> -u <username> [-b <# of records/update] [-d <dbname>] [-a] [-v] [-i]'
 
 def parse_args(argv):
     '''
     parse through the argument list and update the config dict as appropriate
     '''
     try:
-        opts, args = getopt.getopt(argv, "hf:b:d:au:", 
+        opts, args = getopt.getopt(argv, "hf:b:d:au:vi", 
                                    ["help",
                                     "file=",
                                     "blocksize=",
                                     "dbname=",
                                     "append",
-                                    "username="
+                                    "username=",
+                                    "view",
+                                    "index"
                                     ])
     except getopt.GetoptError:
         print usage
@@ -52,6 +56,10 @@ def parse_args(argv):
             config['append'] = True
         elif opt in ("-u", "--username"):
             config['username'] = arg
+        elif opt in ("-v", "--view"):
+            config['view'] = True
+        elif opt in ("-i", "--index"):
+            config['index'] = True
 
 def init_config():
     if config['inputfile'] == '':
@@ -94,7 +102,7 @@ def initialize_db():
     create the database
 
     this essentially does:
-    curl -X PUT https://<username>.cloudant.com/<dbname> -H 'Cookie: <authcookie>'
+    curl -X PUT 'https://<username>.cloudant.com/<dbname>' -H 'Cookie: <authcookie>'
     '''
     r = requests.put(config['dburl'], headers = config['authheader'])
     if r.status_code == 412 and not config['append']:
@@ -109,7 +117,7 @@ def updatedb(requestdata):
     {'docs': [{<doc1>}, {doc2}, ... {docn}]}
 
     this essentially does:
-    curl -X POST https://<username>.cloudant.com/<dbname>/_bulk_docs -H 'Cookie: <authcookie>' -H 'Content-type: application/json' -d '<requestdata>'
+    curl -X POST 'https://<username>.cloudant.com/<dbname>/_bulk_docs' -H 'Cookie: <authcookie>' -H 'Content-type: application/json' -d '<requestdata>'
     '''
     headers = config['authheader']
     headers.update({'Content-type': 'application/json'})
@@ -150,10 +158,10 @@ def make_view(fieldname, activate = False):
     design doc. To activate it remove the "INACTIVE" from the name
 
     this essentially does:
-    curl -X POST https://<username>.cloudant.com/<dbname>/ -H 'Content-type: application/json' -H 'Cooke: <authcookie>' -d '{"_id":"_design/<fieldname>_view","views":{"<fieldname>":{"map":"function(doc){if(doc.<fieldname>){emit(doc.<fieldname>,null);}}","reduce":"_count"}}}'
+    curl -X POST 'https://<username>.cloudant.com/<dbname>/' -H 'Content-type: application/json' -H 'Cooke: <authcookie>' -d '{"_id":"_design/<fieldname>_view","views":{"<fieldname>":{"map":"function(doc){if(doc.<fieldname>){emit(doc.<fieldname>,null);}}","reduce":"_count"}}}'
 
     view this with:
-    curl -X GET https://<username>.cloudant.com/<dbname>/_design/<fieldname>_view/_view/<fieldname>_view
+    curl -X GET 'https://<username>.cloudant.com/<dbname>/_design/<fieldname>_view/_view/<fieldname>'
     to see non reduced results append ?reduce=false
     '''
     headers = config['authheader']
@@ -181,10 +189,10 @@ def make_index(fieldname, activate = False):
     design doc. To activate it remove the "INACTIVE" from the name
 
     this essentially does:
-    curl -X POST https://<username>.cloudant.com/<dbname>/ -H 'Content-type: application/json' -H 'Cooke: <authcookie>' -d '{"_id":"_design/<fieldname>_index","indexes":{\"<fieldname>\":{"index":"function(doc){if(doc.<fieldname>){index('<fieldname>',doc.<fieldname>,{"store":true})}}"}}}'
+    curl -X POST 'https://<username>.cloudant.com/<dbname>' -H 'Content-type: application/json' -H 'Cooke: <authcookie>' -d '{"_id":"_design/<fieldname>_index","indexes":{\"<fieldname>\":{"index":"function(doc){if(doc.<fieldname>){index('<fieldname>',doc.<fieldname>,{"store":true})}}"}}}'
 
     view this with:
-    curl -X GET https://<username>.cloudant.com/<dbname>/_design/<fieldname>_index/_search/<fieldname>?q=<fieldname>:<searchterm>
+    curl -X GET 'https://<username>.cloudant.com/<dbname>/_design/<fieldname>_index/_search/<fieldname>?q=<fieldname>:<searchterm>'
     '''
     headers = config['authheader']
     headers.update({'Content-type': 'application/json'})
@@ -222,10 +230,12 @@ def make_catalog(fieldnames):
             activate = True
         else:
             activate = False
-        #make a secondary index
-        make_view(fieldname, activate)
-        #make a search index
-        make_index(fieldname, activate)
+        if config['view']:
+            #make a secondary index
+            make_view(fieldname, activate)
+        if config['index']:
+            #make a search index
+            make_index(fieldname, activate)
 
 def main(argv):
     parse_args(argv)
