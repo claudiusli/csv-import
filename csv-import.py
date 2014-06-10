@@ -159,7 +159,7 @@ def make_view(fieldname, activate = False):
     Note: to view these docs you will need to replace the / with %2f
 
     this essentially does:
-    curl -X POST 'https://<username>.cloudant.com/<dbname>/' -H 'Content-type: application/json' -H 'Cooke: <authcookie>' -d '{"_id":"_design/<fieldname>_view","views":{"<fieldname>":{"map":"function(doc){if(doc.<fieldname>){emit(doc.<fieldname>,null);}}","reduce":"_count"}}}'
+    curl -X POST 'https://<username>.cloudant.com/<dbname>/' -H 'Content-type: application/json' -H 'Cookie: <authcookie>' -d '{"_id":"_design/<fieldname>_view","views":{"<fieldname>":{"map":"function(doc){if(doc.<fieldname>){emit(doc.<fieldname>,null);}}","reduce":"_count"}}}'
 
     view this with:
     curl -X GET 'https://<username>.cloudant.com/<dbname>/_design/<fieldname>_view/_view/<fieldname>'
@@ -191,7 +191,7 @@ def make_index(fieldname, activate = False):
     Note: to view these docs you will need to replace the / with %2f
 
     this essentially does:
-    curl -X POST 'https://<username>.cloudant.com/<dbname>' -H 'Content-type: application/json' -H 'Cooke: <authcookie>' -d '{"_id":"_design/<fieldname>_index","indexes":{\"<fieldname>\":{"index":"function(doc){if(doc.<fieldname>){index('<fieldname>',doc.<fieldname>,{"store":true})}}"}}}'
+    curl -X POST 'https://<username>.cloudant.com/<dbname>' -H 'Content-type: application/json' -H 'Cookie: <authcookie>' -d '{"_id":"_design/<fieldname>_index","indexes":{\"<fieldname>\":{"index":"function(doc){if(doc.<fieldname>){index('<fieldname>',doc.<fieldname>,{"store":true})}}"}}}'
 
     view this with:
     curl -X GET 'https://<username>.cloudant.com/<dbname>/_design/<fieldname>_index/_search/<fieldname>?q=<fieldname>:<searchterm>'
