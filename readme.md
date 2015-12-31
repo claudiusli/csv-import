@@ -3,7 +3,7 @@ csv-import.py
 requires:
 requests
 
-This script will read in a SCV file and import it into a Cloudant database. The top row of the header file is used to generate the field names. Each row is uploaded as a seperate record.
+This script will read in a CSV file and import it into a Cloudant database. The top row of the header file is used to generate the field names. Each row is uploaded as a seperate record.
 
 usage:
 python csv-import.py -f <csv file to import> -u <username> [-b <# of records/update] [-d <dbname>] [-a] [-v] [-i]
@@ -25,5 +25,7 @@ python csv-import.py -f <csv file to import> -u <username> [-b <# of records/upd
 -v create views for the first 5 fields (sorted in alphabetical order)
 
 -i create search indexes for the first 5 fields (sorted in alphabetical order)
+
+-g create geojson for latitude and longitude fields.  -g LAT_COLUMN_NAME,LON_COLUMN_NAME
 
 -h help print the help message.
