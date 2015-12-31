@@ -247,7 +247,7 @@ def make_geojson_index():
     requestdata = {"_id":"_design/geodd",
                     "views": {},
                     "language": "javascript",
-                    "st_indexes": {"geoidx": {"index": 'function(doc) {if (doc.geometry) {st_index(doc.geometry)}}'}}
+                    "st_indexes": {"geoidx": {"index": 'function(doc) {if (doc.geometry && doc.geometry.coordinates) {st_index(doc.geometry);}}'}}
                   }
 
     r = requests.post(
