@@ -20,20 +20,23 @@ config = dict(
     dbname = '',
     authheader = '',
     view = False,
-    index = False
+    index = False,
+    latitude = '',
+    longitude = ''
     )
-usage = 'python ' + os.path.basename(__file__) + ' -f <csv file to import> -u <username> [-b <# of records/update] [-d <dbname>] [-a] [-v] [-i]'
+usage = 'python ' + os.path.basename(__file__) + ' -f <csv file to import> -u <username> [-b <# of records/update>] [-d <dbname>] [-g <LAT_COLUMN_NAME,LON_COLUMN_NAME>] [-a] [-v] [-i]'
 
 def parse_args(argv):
     '''
     parse through the argument list and update the config dict as appropriate
     '''
     try:
-        opts, args = getopt.getopt(argv, "hf:b:d:au:vi", 
+        opts, args = getopt.getopt(argv, "hf:b:d:g:au:vi",
                                    ["help",
                                     "file=",
                                     "blocksize=",
                                     "dbname=",
+                                    "geojson=",
                                     "append",
                                     "username=",
                                     "view",
@@ -58,6 +61,10 @@ def parse_args(argv):
             config['username'] = arg
         elif opt in ("-v", "--view"):
             config['view'] = True
+        elif opt in ("-g", "--geojson"):
+            if len(arg.split(',')) == 2:
+                config['latitude'] = arg.split(',')[0]
+                config['longitude'] = arg.split(',')[1]
         elif opt in ("-i", "--index"):
             config['index'] = True
 
@@ -77,7 +84,7 @@ def init_config():
 
 def get_password():
     config['password'] = getpass.getpass('Password for {0}:'.format(config["username"]))
-        
+
 def authenticate():
     '''
     Authenticate to the cloudant using username and password
@@ -131,6 +138,7 @@ def read_inputfile():
     '''
     read through the input file and do a bulk update for each <blocksize> rows
     '''
+
     with open(config['inputfile'], 'r') as fh:
         reader = csv.DictReader(fh)
         fieldnames = reader.fieldnames
@@ -143,6 +151,11 @@ def read_inputfile():
                 #reset the temp dict and counter
                 requestdata = dict(docs=[])
                 rowcounter = 0
+
+            #do we have lat/lng fields to create geojson field?
+            if config['latitude'] != '' and config['longitude'] != '' and row[config['latitude']] != '' and row[config['longitude']] != '':
+                row['geometry']={"type":"Point","coordinates":[float(row[config['longitude']]),float(row[config['latitude']])]}
+
             #add row to temp dict
             requestdata['docs'].append(row)
             #increment the row counter
@@ -215,6 +228,33 @@ def make_index(fieldname, activate = False):
         data = json.dumps(requestdata)
     )
 
+def make_geojson_index():
+    '''
+    Create a search index on fieldname
+    if <activate> is set to False the document will not be created as an active
+    design doc. To activate it remove the "INACTIVE" from the name
+    Note: to view these docs you will need to replace the / with %2f
+
+    this essentially does:
+    curl -X POST 'https://<username>.cloudant.com/<dbname>' -H 'Content-type: application/json' -H 'Cookie: <authcookie>' -d '{"_id":"_design/geodd","views": {},"language": "javascript","st_indexes": {"geoidx": {"index":function(doc) {if (doc.geometry) {st_index(doc.geometry)}}}}}'
+
+    view this with:
+    curl -X GET 'https://<username>.cloudant.com/<dbname>/_design/geodd/_geo/?lat=<latitude>&lon=<longitude>&radius=<radius>'
+    '''
+    headers = config['authheader']
+    headers.update({'Content-type': 'application/json'})
+    #clean this up and add the reduce back
+    requestdata = {"_id":"_design/geodd",
+                    "views": {},
+                    "language": "javascript",
+                    "st_indexes": {"geoidx": {"index": 'function(doc) {if (doc.geometry && doc.geometry.coordinates) {st_index(doc.geometry);}}'}}
+                  }
+
+    r = requests.post(
+        config['dburl'],
+        headers = headers,
+        data = json.dumps(requestdata)
+    )
 
 def make_catalog(fieldnames):
     '''
@@ -238,6 +278,10 @@ def make_catalog(fieldnames):
         if config['index']:
             #make a search index
             make_index(fieldname, activate)
+
+    #make a geojson index
+    if config['latitude'] != '' and config['longitude'] != '':
+        make_geojson_index()
 
 def main(argv):
     parse_args(argv)
