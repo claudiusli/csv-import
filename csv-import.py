@@ -54,7 +54,7 @@ def parse_args(argv):
         elif opt in ("-b", "--blocksize"):
             config['blocksize'] = int(arg)
         elif opt in ("-d", "--dbname"):
-            config['dbname'] = arg
+            config['dbname'] = arg.lower()
         elif opt in ("-a", "--append"):
             config['append'] = True
         elif opt in ("-u", "--username"):
@@ -78,7 +78,7 @@ def init_config():
     #let's check if the user specified a DB name
     #if not name it after the input file
     if config['dbname'] == '':
-        config['dbname'] = config['inputfile'].split('.')[0]
+        config['dbname'] = config['inputfile'].split('.')[0].lower()
     config['baseurl'] = 'https://{0}.cloudant.com/'.format(config['username'])
     config['dburl'] = config['baseurl'] + config['dbname']
 
